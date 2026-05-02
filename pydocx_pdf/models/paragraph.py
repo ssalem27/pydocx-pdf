@@ -20,6 +20,32 @@ class Run:
         return bool(self.props.get("italic", False))
 
     @property
+    def is_underline(self) -> bool:
+        return bool(self.props.get("underline", False))
+
+    @property
+    def is_strikethrough(self) -> bool:
+        return bool(self.props.get("strike", False))
+
+    @property
+    def vert_align(self) -> Optional[str]:
+        """Return 'superscript', 'subscript', or None."""
+        return self.props.get("vert_align")
+
+    @property
+    def is_all_caps(self) -> bool:
+        return bool(self.props.get("all_caps", False))
+
+    @property
+    def is_small_caps(self) -> bool:
+        return bool(self.props.get("small_caps", False))
+
+    @property
+    def is_page_break(self) -> bool:
+        """True when this run carries a w:br w:type='page' marker."""
+        return bool(self.props.get("page_break", False))
+
+    @property
     def font_size_pt(self) -> float:
         hp = self.props.get("font_size_half_pt")
         return hp / 2 if hp else 11.0  # default 11pt
@@ -27,6 +53,16 @@ class Run:
     @property
     def font_name(self) -> Optional[str]:
         return self.props.get("font_name")
+
+    @property
+    def font_theme(self) -> Optional[str]:
+        """Theme font reference from w:asciiTheme/w:hAnsiTheme (e.g. 'minorHAnsi')."""
+        return self.props.get("font_theme")
+
+    @property
+    def theme_color(self) -> Optional[str]:
+        """Theme color slot name from w:themeColor (e.g. 'dark1', 'accent1')."""
+        return self.props.get("theme_color")
 
     @property
     def color_hex(self) -> Optional[str]:
@@ -41,6 +77,14 @@ class Paragraph:
     num_id: Optional[str] = None
     ilvl: int = 0
     list_counter: Optional[int] = None
+
+    # Pre-computed at parse time from the LevelDef for this list item.
+    # The renderer reads these directly — no access to NumberingParser needed.
+    list_label: Optional[str] = None        # resolved marker, e.g. "a.", "iii.", "•"
+    list_indent_twips: int = 720            # distance (twips) from page left-margin to
+                                            # the start of the text (= w:ind/@w:left)
+    list_hanging_twips: int = 360           # width of the marker column
+                                            # (= w:ind/@w:hanging)
 
     @property
     def is_list_item(self) -> bool:

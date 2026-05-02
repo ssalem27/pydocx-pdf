@@ -12,6 +12,7 @@ from typing import Union
 
 from pydocx_pdf.exceptions import ConversionError
 from pydocx_pdf.parser.document import DocumentParser
+from pydocx_pdf.parser.theme import parse_theme
 from pydocx_pdf.renderer.pdf_writer import PDFWriter
 from pydocx_pdf.unzipper import unzip_docx
 
@@ -35,9 +36,10 @@ def convert(
 
     try:
         parts = unzip_docx(docx_bytes)
+        theme = parse_theme(parts.theme_xml)
         doc = DocumentParser(parts).parse()
         writer = PDFWriter(font_dir=font_dir)
-        pdf_bytes = writer.render(doc)
+        pdf_bytes = writer.render(doc, theme=theme)
     except Exception as exc:
         raise ConversionError(str(exc)) from exc
 
