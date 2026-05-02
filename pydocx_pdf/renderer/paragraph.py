@@ -363,6 +363,8 @@ class ParagraphRenderer:
     def _apply_text_transforms(self, run: Run) -> str:
         """Return run text with all-caps / small-caps transforms applied."""
         text = run.text
+        # Replace tab characters with spaces (tabs not supported in PDF)
+        text = text.replace('\t', '    ')
         if run.is_all_caps or run.is_small_caps:
             text = text.upper()
         return text

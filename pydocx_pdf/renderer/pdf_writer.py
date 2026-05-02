@@ -1,18 +1,4 @@
-"""
-Top-level PDF renderer.
-
-Owns the fpdf2 FPDF instance and delegates to sub-renderers for paragraphs,
-tables, and images.
-
-Font handling
--------------
-* Bundled DejaVu Sans fonts are always registered (Unicode, permissive licence).
-* Any *.ttf files in the optional *font_dir* are registered by stem name.
-* A FontRegistry maps DOCX font names (Calibri, Arial, Times New Roman, ...)
-  to the best available registered family, using the theme's major/minor font
-  names as the heading/body defaults.
-"""
-
+"""Top-level PDF renderer."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -34,15 +20,30 @@ PAGE_W_MM = 210.0
 PAGE_H_MM = 297.0
 MARGIN_MM = 20.0
 
-# Bundled DejaVu Sans fonts (Unicode, permissive licence)
+# Bundled fonts directory
 _FONTS_DIR = Path(__file__).parent.parent / "fonts"
+
+# Bundled font configurations
 _BUNDLED_FONTS = [
-    ("DejaVuSans", "",   "DejaVuSans.ttf"),
-    ("DejaVuSans", "B",  "DejaVuSans-Bold.ttf"),
-    ("DejaVuSans", "I",  "DejaVuSans-Oblique.ttf"),
+    ("DejaVuSans", "", "DejaVuSans.ttf"),
+    ("DejaVuSans", "B", "DejaVuSans-Bold.ttf"),
+    ("DejaVuSans", "I", "DejaVuSans-Oblique.ttf"),
     ("DejaVuSans", "BI", "DejaVuSans-BoldOblique.ttf"),
+    ("LiberationSans", "", "LiberationSans-Regular.ttf"),
+    ("LiberationSans", "B", "LiberationSans-Bold.ttf"),
+    ("LiberationSans", "I", "LiberationSans-Italic.ttf"),
+    ("LiberationSans", "BI", "LiberationSans-BoldItalic.ttf"),
+    ("LiberationSerif", "", "LiberationSerif-Regular.ttf"),
+    ("LiberationSerif", "B", "LiberationSerif-Bold.ttf"),
+    ("LiberationSerif", "I", "LiberationSerif-Italic.ttf"),
+    ("LiberationSerif", "BI", "LiberationSerif-BoldItalic.ttf"),
+    ("LiberationMono", "", "LiberationMono-Regular.ttf"),
+    ("LiberationMono", "B", "LiberationMono-Bold.ttf"),
+    ("LiberationMono", "I", "LiberationMono-Italic.ttf"),
+    ("LiberationMono", "BI", "LiberationMono-BoldItalic.ttf"),
 ]
-DEFAULT_FONT = "DejaVuSans"
+
+DEFAULT_FONT = "LiberationSans"
 
 
 class PDFWriter:
@@ -54,19 +55,7 @@ class PDFWriter:
         doc: Document,
         theme: Optional[Theme] = None,
     ) -> bytes:
-        """Render doc to PDF bytes.
-
-        Parameters
-        ----------
-        doc:
-            Parsed document model.
-        theme:
-            Optional parsed theme (major/minor font names, color scheme).
-            When provided the renderer uses the theme's font choices as the
-            heading and body defaults, which is essential for documents that
-            rely on w:asciiTheme references (the default in Calibri-based
-            Office templates).
-        """
+        """Render doc to PDF bytes."""
         pdf, registered = self._create_pdf()
 
         major = theme.major_font if theme else None
@@ -97,7 +86,7 @@ class PDFWriter:
 
         registered: Set[str] = set()
 
-        # Register bundled Unicode fonts (DejaVu Sans)
+        # Register bundled fonts
         for family, style, filename in _BUNDLED_FONTS:
             ttf_path = _FONTS_DIR / filename
             if ttf_path.exists():

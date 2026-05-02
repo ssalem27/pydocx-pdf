@@ -35,6 +35,7 @@ _SANS_SERIF: FrozenSet[str] = frozenset({
     "noto sans", "inter", "nunito", "poppins", "montserrat", "raleway",
     "ubuntu", "droid sans", "pt sans", "fira sans", "oxygen",
     "system-ui", "ui-sans-serif",
+    "liberationsans",  # Bundled font for Arial
     # Generic
     "sans-serif",
 })
@@ -52,6 +53,7 @@ _SERIF: FrozenSet[str] = frozenset({
     "noto serif", "merriweather", "pt serif", "lora",
     "playfair display", "cormorant garamond", "libre baskerville",
     "charter", "bitstream charter", "computer modern",
+    "liberationserif",  # Bundled font for Times New Roman
     "ui-serif",
     # Generic
     "serif",
@@ -66,6 +68,7 @@ _MONO: FrozenSet[str] = frozenset({
     "lucida console", "lucida sans typewriter",
     "andale mono", "dejavu sans mono",
     "noto mono", "pt mono", "space mono", "ibm plex mono",
+    "liberationmono",  # Bundled font for Courier
     "ui-monospace",
     # Generic
     "monospace", "monospaced", "fixed",
@@ -75,9 +78,9 @@ _MONO: FrozenSet[str] = frozenset({
 # Candidate families tried in priority order (first registered one wins)
 # ---------------------------------------------------------------------------
 
-_SANS_CANDIDATES:  Tuple[str, ...] = ("DejaVuSans",    "Helvetica", "Arial")
-_SERIF_CANDIDATES: Tuple[str, ...] = ("DejaVuSerif",   "NotoSerif", "Times",   "DejaVuSans")
-_MONO_CANDIDATES:  Tuple[str, ...] = ("DejaVuSansMono","Courier",              "DejaVuSans")
+_SANS_CANDIDATES:  Tuple[str, ...] = ("LiberationSans", "DejaVuSans",    "Helvetica", "Arial")
+_SERIF_CANDIDATES: Tuple[str, ...] = ("LiberationSerif", "DejaVuSerif",   "NotoSerif", "Times",   "DejaVuSans")
+_MONO_CANDIDATES:  Tuple[str, ...] = ("LiberationMono",  "DejaVuSansMono","Courier",              "DejaVuSans")
 
 # ---------------------------------------------------------------------------
 # Substring heuristics (checked when exact genre lookup fails)
@@ -91,19 +94,7 @@ _SERIF_HINTS = ("serif", "roman", "times", "garamond", "caslon", "bodoni",
 # ---------------------------------------------------------------------------
 
 class FontRegistry:
-    """
-    Resolves DOCX font names to registered PDF font families.
-
-    Usage::
-
-        registry = FontRegistry(
-            registered={"DejaVuSans", "DejaVuSans"},   # what fpdf2 knows about
-            major_font="Calibri Light",                 # from theme (headings)
-            minor_font="Calibri",                       # from theme (body)
-        )
-        family = registry.resolve("Times New Roman")    # → "DejaVuSans" (fallback)
-        family = registry.resolve_theme_ref("majorHAnsi") # → major_family
-    """
+    """Resolves DOCX font names to registered PDF font families."""
 
     def __init__(
         self,
@@ -130,12 +121,7 @@ class FontRegistry:
     # -- public ----------------------------------------------------------------
 
     def resolve(self, font_name: Optional[str], *, for_heading: bool = False) -> str:
-        """
-        Return the best registered PDF font family for *font_name*.
-
-        Falls back to ``major_family`` when *for_heading* is True,
-        otherwise ``minor_family``.
-        """
+        """Return the best registered PDF font family for font_name."""
         fallback = self.major_family if for_heading else self.minor_family
         if not font_name:
             return fallback
@@ -147,14 +133,7 @@ class FontRegistry:
         return result
 
     def resolve_theme_ref(self, theme_ref: Optional[str]) -> Optional[str]:
-        """
-        Resolve a ``w:asciiTheme`` / ``w:hAnsiTheme`` attribute value.
-
-        Common values: ``majorHAnsi``, ``minorHAnsi``, ``majorBidi``,
-        ``minorBidi``, ``majorAscii``, ``minorAscii``.
-
-        Returns ``None`` for unrecognised refs so the caller can fall through.
-        """
+        """Resolve w:asciiTheme / w:hAnsiTheme attribute values."""
         if not theme_ref:
             return None
         ref = theme_ref.strip().lower()
@@ -165,12 +144,13 @@ class FontRegistry:
         return None
 
     def is_registered(self, family: str) -> bool:
+        """Check if a font family is registered in the PDF."""
         return family.lower() in self._reg_lower
 
     # -- internals -------------------------------------------------------------
 
     def _resolve_name(self, font_name: str) -> str:
-        """Map a DOCX font name to a registered PDF family, or '' if none."""
+        """Map a DOCX font name to a registered PDF family, or empty string."""
         key = font_name.strip().lower()
 
         # 1. Exact (case-insensitive) match
@@ -195,7 +175,7 @@ class FontRegistry:
         return ""
 
     def _best(self, candidates: Tuple[str, ...]) -> str:
-        """First candidate that is registered, else the last entry."""
+        """Return first registered candidate, else the last entry."""
         for c in candidates:
             if c.lower() in self._reg_lower:
                 return self._reg_raw.get(c.lower(), c)
