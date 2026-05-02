@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "pydocx-pdf"
@@ -26,9 +26,8 @@ dev = [
 [project.scripts]
 pydocx-pdf = "pydocx_pdf.cli:main"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["pydocx_pdf*"]
+[tool.hatch.build.targets.wheel]
+packages = ["pydocx_pdf"]
 
 [tool.ruff]
 line-length = 100
