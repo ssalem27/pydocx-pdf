@@ -43,11 +43,17 @@ coverage.xml
 # Logs / temp files
 *.log
 *.tmp
+test.txt
 
-# Project-specific: generated files (keep test fixtures)
+# Project-specific: generated files (keep test fixtures and demo)
 *.pdf
 *.docx
 !tests/fixtures/
+!demo/
+
+# Egg-info / installation files
+*.egg-info/
+.eggs/
 
 # OS
 .DS_Store
