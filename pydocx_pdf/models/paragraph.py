@@ -68,6 +68,26 @@ class Run:
     def color_hex(self) -> Optional[str]:
         return self.props.get("color")  # e.g. "1F3864"
 
+    @property
+    def char_spacing_twentiethpt(self) -> int:
+        """Character spacing in 1/20th of a point. Positive=expanded, negative=condensed."""
+        return self.props.get("char_spacing_twentiethpt", 0)
+
+    @property
+    def kern_half_pt(self) -> Optional[int]:
+        """Minimum font size for kerning in half-points."""
+        return self.props.get("kern_half_pt")
+
+    @property
+    def scale_percent(self) -> int:
+        """Character width scaling as percentage (100 = normal)."""
+        return self.props.get("scale_percent", 100)
+
+    @property
+    def position_half_pt(self) -> int:
+        """Vertical position offset in half-points. Positive=raise, negative=lower."""
+        return self.props.get("position_half_pt", 0)
+
 
 @dataclass
 class Paragraph:

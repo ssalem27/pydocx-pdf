@@ -216,4 +216,38 @@ def _parse_rpr(rpr: ET.Element) -> Dict[str, Any]:
         if theme_ref:
             props["font_theme"] = theme_ref
 
+    # Character spacing: w:spacing inside w:rPr is in 1/20th of a point.
+    # Positive = expanded, negative = condensed. Distinct from w:pPr/w:spacing
+    # which controls paragraph-level before/after/line spacing.
+    spacing = rpr.find(f"{{{NS['w']}}}spacing")
+    if spacing is not None:
+        val = spacing.get(qn("w:val"))
+        if val:
+            props["char_spacing_twentiethpt"] = int(val)
+
+    # Kerning: w:kern stores the minimum font size (in half-points) at which
+    # pair kerning is applied. Stored for completeness; fpdf2 cannot apply
+    # sub-glyph kerning but the value is preserved so it is not silently lost.
+    kern = rpr.find(f"{{{NS['w']}}}kern")
+    if kern is not None:
+        val = kern.get(qn("w:val"))
+        if val:
+            props["kern_half_pt"] = int(val)
+
+    # Horizontal scale / width compression (w:w stores a percentage; 100 = normal).
+    scale = rpr.find(f"{{{NS['w']}}}w")
+    if scale is not None:
+        val = scale.get(qn("w:val"))
+        if val:
+            props["scale_percent"] = int(val)
+
+    # Vertical position offset (w:position in half-points; positive = raise,
+    # negative = lower). Used for manual baseline shifts independent of
+    # super/subscript.
+    position = rpr.find(f"{{{NS['w']}}}position")
+    if position is not None:
+        val = position.get(qn("w:val"))
+        if val:
+            props["position_half_pt"] = int(val)
+
     return props
