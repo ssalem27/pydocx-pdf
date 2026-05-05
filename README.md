@@ -2,7 +2,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/pydocx-pdf)](https://pypi.org/project/pydocx-pdf/)
 [![Python](https://img.shields.io/pypi/pyversions/pydocx-pdf)](https://pypi.org/project/pydocx-pdf/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.txt)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 [![CI](https://github.com/safialhasi/pydocx-pdf/actions/workflows/python-publish.yml/badge.svg)](https://github.com/safialhasi/pydocx-pdf/actions)
 
 Zero-dependency DOCX → PDF converter designed for **EKS pods**, Docker containers, and other **headless, containerised** environments.
@@ -297,4 +297,4 @@ tests/
 
 ## License
 
-[MIT](LICENSE.txt) © Safiuddeen Salem
+[Apache 2.0](LICENSE.txt) © Safiuddeen Salem
