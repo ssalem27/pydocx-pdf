@@ -50,10 +50,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/safialhasi/pydocx-pdf"
-Repository = "https://github.com/safialhasi/pydocx-pdf"
-Issues = "https://github.com/safialhasi/pydocx-pdf/issues"
-Changelog = "https://github.com/safialhasi/pydocx-pdf/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/ssalem27/pydocx-pdf"
+Repository = "https://github.com/ssalem27/pydocx-pdf"
+Issues = "https://github.com/ssalem27/pydocx-pdf/issues"
+Changelog = "https://github.com/ssalem27/pydocx-pdf/blob/main/CHANGELOG.md"
 
 [project.scripts]
 pydocx-pdf = "pydocx_pdf.cli:main"

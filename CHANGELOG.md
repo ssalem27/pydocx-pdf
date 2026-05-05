@@ -112,5 +112,5 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
-[Unreleased]: https://github.com/safialhasi/pydocx-pdf/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/safialhasi/pydocx-pdf/releases/tag/v0.1.0
+[Unreleased]: https://github.com/ssalem27/pydocx-pdf/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/ssalem27/pydocx-pdf/releases/tag/v0.1.0
