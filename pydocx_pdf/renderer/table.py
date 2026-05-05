@@ -505,6 +505,6 @@ class TableRenderer:
                 w=width_mm, h=line_h, text=text,
                 dry_run=True, output="LINES",
             )
-            return max(1, len(lines)) * line_h
+            return max(1, len(list(lines))) * line_h
         except Exception:
             return line_h

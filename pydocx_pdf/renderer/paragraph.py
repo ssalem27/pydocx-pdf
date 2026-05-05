@@ -388,12 +388,12 @@ class ParagraphRenderer:
         """
         try:
             font = self._pdf.current_font
-            if not hasattr(font, "desc"):
+            desc = getattr(font, "desc", None)
+            if desc is None:
                 raise AttributeError
-            desc  = font.desc  # type: ignore[union-attr]
-            asc   = desc.ascent
-            dsc   = desc.descent
-            ratio: float = float((asc - dsc) / 1000.0)
+            asc: float = float(desc.ascent)
+            dsc: float = float(desc.descent)
+            ratio: float = (asc - dsc) / 1000.0
             ratio = max(1.0, min(ratio, 2.0))
         except Exception:
             ratio = 1.15
