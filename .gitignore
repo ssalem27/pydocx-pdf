@@ -64,3 +64,4 @@ Thumbs.db
 .idea/
 
 docker-compose.yml
+CLAUDE.md

@@ -393,7 +393,7 @@ class ParagraphRenderer:
             desc  = font.desc  # type: ignore[union-attr]
             asc   = desc.ascent
             dsc   = desc.descent
-            ratio = (asc - dsc) / 1000.0
+            ratio: float = float((asc - dsc) / 1000.0)
             ratio = max(1.0, min(ratio, 2.0))
         except Exception:
             ratio = 1.15
