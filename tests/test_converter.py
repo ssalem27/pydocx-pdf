@@ -43,7 +43,7 @@ def test_convert_writes_to_file(tmp_path):
 
 
 def test_convert_bad_input_raises():
-    with pytest.raises(Exception):
+    with pytest.raises(ConversionError):
         convert(b"not a docx")
 
 

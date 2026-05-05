@@ -9,12 +9,11 @@ Verifies the full pipeline:
 """
 
 import io
+import re
 import zipfile
 import zlib
-import re
 
 from pydocx_pdf import convert
-
 
 # ---------------------------------------------------------------------------
 # DOCX fixtures

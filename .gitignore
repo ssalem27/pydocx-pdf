@@ -62,3 +62,5 @@ Thumbs.db
 # IDEs
 .vscode/
 .idea/
+
+docker-compose.yml

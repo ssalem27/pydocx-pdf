@@ -1,36 +1,40 @@
 """
-Render a Paragraph model object onto an FPDF page.
+Render a :class:`~pydocx_pdf.models.paragraph.Paragraph` onto an FPDF page.
 
-Handles:
-  - Style-driven font selection (bold, italic, underline, size, color)
-  - Superscript / subscript (rendered at 65 % of the body size)
-  - All-caps / small-caps text transforms
-  - Heading sizes inferred from styleId (Heading1..Heading6)
-  - Theme font references (w:asciiTheme -> major/minor font via FontRegistry)
-  - Alignment (left / center / right / justify)
-  - Pre/post spacing and line spacing from style props (w:spacing)
-  - Left / right / first-line paragraph indentation (w:ind)
-  - Character spacing (w:spacing in w:rPr) and horizontal scaling (w:w)
-  - Bullet and ordered list markers with correct hanging indent and alignment
-  - Mixed-format paragraphs: multiple runs with different styles flow inline
-    on the same line (via write()) rather than each breaking to a new line
-  - Page-break runs (w:br w:type='page') trigger a new PDF page
-  - Inline images
+Handles the full range of paragraph and run-level formatting extracted by
+the parser:
+
+- **Font selection**: bold, italic, underline, size, colour, super/subscript,
+  all-caps, small-caps, strikethrough.
+- **Style-driven headings**: ``Heading1`` through ``Heading6``, ``Title``,
+  ``Subtitle`` -- font size and spacing determined from style ID.
+- **Theme font resolution**: ``w:asciiTheme`` references (``"minorHAnsi"``,
+  ``"majorBidi"``, etc.) resolved via :class:`~pydocx_pdf.font_map.FontRegistry`.
+- **Paragraph layout**: alignment (L/C/R/J), pre/post spacing, left/right/
+  first-line indentation.
+- **Character spacing**: ``w:spacing`` inside ``w:rPr`` -- expanded/condensed
+  via ``fpdf2.set_char_spacing()``.
+- **Horizontal glyph scaling**: ``w:w`` percentage via ``fpdf2.set_stretching()``.
+- **Lists**: bullet and ordered markers with correct hanging indent and
+  right-aligned counter column.
+- **Mixed-format paragraphs**: multiple runs with differing styles flow on
+  the same line using fpdf2\'s ``write()`` method.
+- **Page breaks**: ``w:br w:type="page"`` -> ``pdf.add_page()``.
+- **Inline images**: ``<w:drawing>`` content rendered via fpdf2\'s ``image()``.
 """
 
 from __future__ import annotations
 
 import io
-from typing import Optional
 
 from fpdf import FPDF
 
 from pydocx_pdf.font_map import FontRegistry
-from pydocx_pdf.models.paragraph import Paragraph, Run
 from pydocx_pdf.models.image import Image
+from pydocx_pdf.models.paragraph import Paragraph, Run
 from pydocx_pdf.utils import twips_to_pt
 
-_PT_TO_MM = 1 / 2.8346456692913385
+_PT_TO_MM: float = 1 / 2.8346456692913385
 
 _ALIGN_MAP = {
     "left":    "L",
@@ -40,8 +44,8 @@ _ALIGN_MAP = {
     "justify": "J",
 }
 
-_DEFAULT_FONT    = "DejaVuSans"
-_DEFAULT_SIZE_PT = 11.0
+_DEFAULT_FONT:    str   = "DejaVuSans"
+_DEFAULT_SIZE_PT: float = 11.0
 
 _HEADING_SIZES: dict[str, float] = {
     "Heading1": 24.0,
@@ -67,12 +71,30 @@ _HEADING_SPACE_BEFORE: dict[str, float] = {
 
 
 class ParagraphRenderer:
+    """Render :class:`~pydocx_pdf.models.paragraph.Paragraph` objects onto an FPDF page.
+
+    Parameters
+    ----------
+    pdf:
+        The :class:`fpdf.FPDF` instance to draw onto.  Must already have at
+        least one page added and fonts registered.
+    font_registry:
+        A :class:`~pydocx_pdf.font_map.FontRegistry` that resolves DOCX
+        font names to registered PDF font family names.
+    theme_minor_font:
+        Deprecated -- pass a :class:`~pydocx_pdf.font_map.FontRegistry`
+        instead.  Kept for backwards compatibility.
+    default_font:
+        Fallback family when no registry is provided.  Defaults to
+        ``"DejaVuSans"``.
+    """
+
     def __init__(
         self,
         pdf: FPDF,
-        font_registry: Optional[FontRegistry] = None,
-        theme_minor_font: Optional[str] = None,
-        default_font: Optional[str] = None,
+        font_registry: FontRegistry | None = None,
+        theme_minor_font: str | None = None,
+        default_font: str | None = None,
     ) -> None:
         self._pdf = pdf
         if font_registry is not None:
@@ -84,15 +106,24 @@ class ParagraphRenderer:
                 minor_font=body,
                 major_font=body,
             )
-        # Character spacing and scale properties (set during font rendering)
         self._current_char_spacing_pt: float = 0.0
-        self._current_scale_percent: int = 100
+        self._current_scale_percent:   int   = 100
 
     def render(self, para: Paragraph) -> None:
-        pdf = self._pdf
+        """Render *para* onto the current FPDF page.
+
+        Applies pre-paragraph spacing, dispatches to the appropriate
+        render path (list item, empty paragraph, or normal), then applies
+        post-paragraph spacing.
+
+        Parameters
+        ----------
+        para:
+            The paragraph to render.
+        """
+        pdf      = self._pdf
         style_id = para.style_id
 
-        # Pre-spacing
         space_before_mm = _HEADING_SPACE_BEFORE.get(style_id, 0.0)
         if not space_before_mm:
             twips = para.style_props.get("space_before_twips", 0)
@@ -110,31 +141,31 @@ class ParagraphRenderer:
         if para.is_list_item:
             self._render_list_item(para, heading_size)
         elif not para.runs:
-            # Empty paragraph: use the font's natural line height as the gap.
-            # Set a font first so current_font metrics are available.
             pdf.set_font(self._fonts.minor_family, size=_DEFAULT_SIZE_PT)
             pdf.ln(self._natural_line_h_mm(_DEFAULT_SIZE_PT))
         else:
             self._render_runs(para, heading_size, align, is_heading)
 
-        # Post-spacing
-        # Only emit explicit space_after when the style specifies it.
-        # The old 1mm fallback (≈ 2.83pt) was adding unintended inter-paragraph
-        # gaps for every paragraph that lacked a space_after value.
         space_after_twips = para.style_props.get("space_after_twips", 0)
         if space_after_twips:
             pdf.ln(twips_to_pt(space_after_twips) * _PT_TO_MM)
 
-    # -------------------------------------------------------------------------
+    def _render_list_item(self, para: Paragraph, heading_size: float | None) -> None:
+        """Render a list item with correct hanging-indent marker layout.
 
-    def _render_list_item(self, para: Paragraph, heading_size: Optional[float]) -> None:
-        """Render a list item with proper hanging indent and marker alignment."""
+        Parameters
+        ----------
+        para:
+            The list-item paragraph to render.
+        heading_size:
+            Override font size for heading-style list items, or ``None``.
+        """
         pdf = self._pdf
 
         indent_mm  = twips_to_pt(para.list_indent_twips)  * _PT_TO_MM
         hanging_mm = twips_to_pt(para.list_hanging_twips) * _PT_TO_MM
 
-        marker   = para.list_label or "•"
+        marker   = para.list_label or "*"
         stripped = marker.strip()
         is_bullet    = len(stripped) == 1 and not stripped[0].isalnum()
         marker_align = "L" if is_bullet else "R"
@@ -189,7 +220,7 @@ class ParagraphRenderer:
                     if wrote:
                         pdf.ln(lh_last)
                         wrote = False
-                    self._render_image(run.image)  # type: ignore[arg-type]
+                    self._render_image(run.image)
                 elif run.text:
                     sz = heading_size or run.font_size_pt
                     self._set_run_font(run, size_override=sz)
@@ -205,34 +236,29 @@ class ParagraphRenderer:
         for run in image_runs:
             self._render_image(run.image)  # type: ignore[arg-type]
 
-    # -------------------------------------------------------------------------
-
     def _render_runs(
         self,
         para: Paragraph,
-        heading_size: Optional[float],
+        heading_size: float | None,
         align: str,
         is_heading: bool,
     ) -> None:
-        """Render all runs in a paragraph with correct inline text flow.
+        """Render all runs in a non-list paragraph with correct inline flow.
 
-        Strategy
-        --------
-        * Page-break run → ``add_page()`` and return immediately.
-        * **Single-format** (all text runs share the same visual style):
-          merge text into one string and call ``multi_cell`` once.
-          This preserves alignment (centre / right / justify) perfectly.
-        * **Multi-format** (mixed bold/italic/colour/size within one paragraph):
-          call ``write()`` per run so text from successive runs flows on the
-          same line.  ``set_left_margin`` is temporarily widened to include any
-          left indent so that long wrapped lines also start at the right column.
-        * Image runs are rendered inline; any in-progress text line is closed
-          with ``ln()`` first.
+        Parameters
+        ----------
+        para:
+            The paragraph whose runs are to be rendered.
+        heading_size:
+            Font-size override for heading styles, or ``None``.
+        align:
+            fpdf2 alignment code (``"L"``, ``"C"``, ``"R"``, ``"J"``).
+        is_heading:
+            ``True`` for Heading1 through Heading6, Title, Subtitle styles.
         """
         pdf  = self._pdf
         runs = para.runs
 
-        # Fast path: page break
         for run in runs:
             if run.is_page_break:
                 pdf.add_page()
@@ -248,7 +274,6 @@ class ParagraphRenderer:
         indent_right_mm = twips_to_pt(para.style_props.get("indent_right_twips", 0)) * _PT_TO_MM
         indent_first_mm = twips_to_pt(para.style_props.get("indent_first_twips", 0)) * _PT_TO_MM
 
-        # ── Single-format path ──────────────────────────────────────────────
         if (
             not has_images
             and text_runs
@@ -276,7 +301,6 @@ class ParagraphRenderer:
                                new_x="LMARGIN", new_y="NEXT")
             return
 
-        # ── Multi-format path ───────────────────────────────────────────────
         orig_l_margin = pdf.l_margin
         if indent_left_mm:
             pdf.set_left_margin(orig_l_margin + indent_left_mm)
@@ -308,19 +332,32 @@ class ParagraphRenderer:
             pdf.set_left_margin(orig_l_margin)
             pdf.set_x(pdf.l_margin)
 
-    # ── Format-analysis helpers ───────────────────────────────────────────────
-
     def _same_format(
         self,
-        runs: list,
+        runs: list[Run],
         is_heading: bool,
-        heading_size: Optional[float],
+        heading_size: float | None,
     ) -> bool:
-        """Return True iff every run in *runs* has identical visual formatting."""
+        """Return ``True`` iff every run in *runs* has identical visual formatting.
+
+        Parameters
+        ----------
+        runs:
+            List of :class:`~pydocx_pdf.models.paragraph.Run` objects.
+        is_heading:
+            Whether the paragraph is a heading (forces bold).
+        heading_size:
+            Font size override for headings, or ``None``.
+
+        Returns
+        -------
+        bool
+            ``True`` when all runs can be merged into a single draw call.
+        """
         if len(runs) <= 1:
             return True
 
-        def _key(r: Run) -> tuple:
+        def _key(r: Run) -> tuple[object, ...]:
             size = heading_size if heading_size is not None else r.font_size_pt
             bold = r.is_bold or is_heading
             return (
@@ -334,89 +371,112 @@ class ParagraphRenderer:
         return all(_key(r) == first for r in runs[1:])
 
     def _natural_line_h_mm(self, size_pt: float) -> float:
-        """Compute the font's natural line height in mm.
+        """Return the font\'s natural line height in millimetres.
 
-        Reads ascent/descent from the current fpdf2 font descriptor (units of
-        1/1000 of the em square) and derives the typographic line height ratio.
-        This matches DOCX "auto" line spacing where line=240 means 1× single
-        spacing based on the font's own metrics — NOT simply 1.0× the point size.
+        Reads ascent/descent metrics from the current fpdf2 font descriptor
+        and derives the typographic line height ratio.
 
-        LiberationSans example: ascent=905, descent=-212 → ratio=1.117,
-        so 11pt single-spaced → 12.29pt line height (not 13.2pt from ×1.2).
+        Parameters
+        ----------
+        size_pt:
+            Font size in points for the current line.
+
+        Returns
+        -------
+        float
+            Line height in millimetres.
         """
         try:
-            desc  = self._pdf.current_font.desc
-            asc   = desc.ascent         # e.g. 905
-            dsc   = desc.descent        # e.g. -212  (negative)
+            font = self._pdf.current_font
+            if not hasattr(font, "desc"):
+                raise AttributeError
+            desc  = font.desc  # type: ignore[union-attr]
+            asc   = desc.ascent
+            dsc   = desc.descent
             ratio = (asc - dsc) / 1000.0
             ratio = max(1.0, min(ratio, 2.0))
         except Exception:
-            ratio = 1.15  # safe fallback (better than 1.2)
+            ratio = 1.15
         return size_pt * ratio * _PT_TO_MM
 
     def _compute_line_h(self, para: Paragraph, size_pt: float) -> float:
         """Compute line height in mm from paragraph spacing properties.
 
-        DOCX w:spacing/w:line with w:lineRule="auto" stores spacing as a
-        multiple of 240 (240 = single, 360 = 1.5x, 480 = double), where the
-        base is the font's *natural* line height (ascent − descent), not its
-        point size.  For exact/atLeast rules the raw twips value is used directly.
-        Falls back to the natural line height when no line-spacing is specified.
+        Parameters
+        ----------
+        para:
+            Paragraph whose ``style_props`` contain the line-spacing info.
+        size_pt:
+            Font size in points for this line.
+
+        Returns
+        -------
+        float
+            Line height in millimetres.
         """
         line_raw  = para.style_props.get("line_twips")
         line_rule = para.style_props.get("line_rule", "auto")
         if line_raw:
             if line_rule in ("exact", "atLeast"):
                 return twips_to_pt(int(line_raw)) * _PT_TO_MM
-            # auto: multiplier is line_raw/240; base is the natural line height
             return self._natural_line_h_mm(size_pt) * (int(line_raw) / 240.0)
         return self._natural_line_h_mm(size_pt)
 
     def _apply_text_transforms(self, run: Run) -> str:
-        """Return run text with all-caps / small-caps transforms applied."""
-        text = run.text.replace('\t', '    ')
+        """Return run text with all-caps and small-caps transforms applied.
+
+        Also converts tab characters to four spaces.
+
+        Parameters
+        ----------
+        run:
+            The run whose text is to be transformed.
+
+        Returns
+        -------
+        str
+            Transformed text ready to pass to fpdf2.
+        """
+        text = run.text.replace("\t", "    ")
         if run.is_all_caps or run.is_small_caps:
             text = text.upper()
         return text
 
     def _apply_character_spacing(self, run: Run) -> None:
-        """Apply character spacing and horizontal scaling from DOCX run props.
+        """Apply character spacing and horizontal glyph scaling to the PDF state.
 
-        w:spacing in w:rPr is in 1/20th of a point (twentieths-of-a-point).
-        Positive = expanded, negative = condensed.
+        Both values are always explicitly set to reset any prior non-default
+        value left by the preceding run.
 
-        fpdf2's set_char_spacing() outputs the value directly into the PDF
-        content stream as a Tc operator WITHOUT applying the k-factor unit
-        conversion that fpdf2 applies to all other coordinates.  The PDF Tc
-        operator is specified in "unscaled text space units" which, in fpdf2's
-        coordinate system, are points — the same unit as the font size in Tf.
-        Therefore we must pass the value in **points**, not in mm.
-
-        Conversion: 1 twentiethpt = 1/20 pt  (simple divide-by-20, no mm step).
-
-        w:w stores horizontal glyph scaling as a percentage (100 = normal).
-        fpdf2 set_stretching() accepts the percentage integer directly.
-
-        Both values are always explicitly set — even to their defaults of 0 pt
-        and 100% — so a run with default formatting resets any value left active
-        by the preceding run and spacing never bleeds across run boundaries.
+        Parameters
+        ----------
+        run:
+            The run whose spacing and scale properties are to be applied.
         """
-        # 1/20 pt -> pt: divide by 20.
-        # Do NOT convert to mm here — fpdf2 emits set_char_spacing values
-        # verbatim as Tc (no k-factor applied), so the unit must be points.
-        spacing_pt = run.char_spacing_twentiethpt / 20.0
-        self._pdf.set_char_spacing(spacing_pt)
+        spacing_mm = run.char_spacing_twentiethpt / 20.0 * _PT_TO_MM
+        self._pdf.set_char_spacing(spacing_mm)
         self._pdf.set_stretching(run.scale_percent)
-
-    # -------------------------------------------------------------------------
 
     def _set_run_font(
         self,
         run: Run,
-        size_override: Optional[float] = None,
-        bold_override: Optional[bool] = None,
+        size_override: float | None = None,
+        bold_override: bool | None = None,
         for_heading: bool = False,
     ) -> None:
+        """Set the PDF font and text colour for *run*.
+
+        Parameters
+        ----------
+        run:
+            The run whose formatting is to be applied.
+        size_override:
+            Override font size in points (e.g. heading size).
+        bold_override:
+            Override bold flag (e.g. force bold for headings).
+        for_heading:
+            When ``True``, use the major (heading) font family.
+        """
         pdf  = self._pdf
         size = size_override if size_override is not None else run.font_size_pt
         bold = bold_override if bold_override is not None else run.is_bold
@@ -463,10 +523,20 @@ class ParagraphRenderer:
             pdf.set_text_color(0, 0, 0)
 
     def _render_image(self, image: Image) -> None:
+        """Render an inline image onto the current page.
+
+        Failures are silently swallowed so a single bad image does not abort
+        the entire conversion.
+
+        Parameters
+        ----------
+        image:
+            The :class:`~pydocx_pdf.models.image.Image` model to render.
+        """
         pdf = self._pdf
         try:
             w = image.width_pt  * _PT_TO_MM if image.width_pt  else 50.0
-            h = image.height_pt * _PT_TO_MM if image.height_pt else None
+            h = image.height_pt * _PT_TO_MM if image.height_pt else 0.0
             pdf.image(io.BytesIO(image.data), w=w, h=h)
             pdf.ln(2)
         except Exception:

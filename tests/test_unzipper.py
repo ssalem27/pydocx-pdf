@@ -5,7 +5,7 @@ import zipfile
 
 import pytest
 
-from pydocx_pdf.unzipper import DocxParts, unzip_docx
+from pydocx_pdf.unzipper import unzip_docx
 
 
 def _make_docx(files: dict[str, bytes]) -> bytes:

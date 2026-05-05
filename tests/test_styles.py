@@ -1,6 +1,5 @@
 """Tests for the styles parser."""
 
-import pytest
 
 from pydocx_pdf.parser.styles import StylesParser
 

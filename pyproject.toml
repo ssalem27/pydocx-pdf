@@ -10,6 +10,32 @@ readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.9"
 authors = [{ name = "Safiuddeen Salem", email = "safialhasi@gmail.com" }]
+keywords = [
+    "docx", "pdf", "word", "converter", "document",
+    "fpdf2", "kubernetes", "eks", "container", "headless",
+    "office", "libreoffice-free", "pure-python",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Topic :: Office/Business :: Office Suites",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Markup :: XML",
+    "Topic :: Printing",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3 :: Only",
+    "Environment :: No Input/Output (Daemon)",
+    "Environment :: Console",
+    "Operating System :: OS Independent",
+    "Typing :: Typed",
+]
 dependencies = [
     "fpdf2>=2.7",
     "Pillow>=10.0",
@@ -23,19 +49,41 @@ dev = [
     "ruff",
 ]
 
+[project.urls]
+Homepage = "https://github.com/safialhasi/pydocx-pdf"
+Repository = "https://github.com/safialhasi/pydocx-pdf"
+Issues = "https://github.com/safialhasi/pydocx-pdf/issues"
+Changelog = "https://github.com/safialhasi/pydocx-pdf/blob/main/CHANGELOG.md"
+
 [project.scripts]
 pydocx-pdf = "pydocx_pdf.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pydocx_pdf"]
 
+[tool.hatch.build.targets.sdist]
+include = [
+    "pydocx_pdf/",
+    "tests/",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE.txt",
+    "pyproject.toml",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py39"
 
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+
 [tool.pytest.ini_options]
-addopts = "--basetemp=/tmp/pytest-pydocx"
+addopts = "-p no:cacheprovider"
 
 [tool.mypy]
 python_version = "3.9"
 strict = true
+warn_return_any = true
+warn_unused_configs = true

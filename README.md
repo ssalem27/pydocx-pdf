@@ -1,11 +1,17 @@
 # pydocx-pdf
 
-Zero-dependency DOCX → PDF converter designed for EKS pods and other containerized, headless environments.
+[![PyPI](https://img.shields.io/pypi/v/pydocx-pdf)](https://pypi.org/project/pydocx-pdf/)
+[![Python](https://img.shields.io/pypi/pyversions/pydocx-pdf)](https://pypi.org/project/pydocx-pdf/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.txt)
+[![CI](https://github.com/safialhasi/pydocx-pdf/actions/workflows/python-publish.yml/badge.svg)](https://github.com/safialhasi/pydocx-pdf/actions)
 
-- **No LibreOffice, no system fonts, no external calls**
-- Unzips `.docx` (a ZIP of XML) and manually renders a PDF using [`fpdf2`](https://py-pdf.github.io/fpdf2/)
+Zero-dependency DOCX → PDF converter designed for **EKS pods**, Docker containers, and other **headless, containerised** environments.
+
+- **No LibreOffice, no Pandoc, no system fonts, no external API calls**
+- Unzips `.docx` (a ZIP of XML) and renders a PDF directly using [`fpdf2`](https://py-pdf.github.io/fpdf2/)
 - Fully air-gap safe — zero network egress at runtime
-- Pure Python, ships as a standard pip package
+- Ships as a standard pip package; works on read-only root filesystems
+- PEP 561 compliant (`py.typed` marker included)
 
 ---
 
@@ -15,213 +21,280 @@ Zero-dependency DOCX → PDF converter designed for EKS pods and other container
 pip install pydocx-pdf
 ```
 
-Or from source:
+From source:
 
 ```bash
-pip install .
+git clone https://github.com/safialhasi/pydocx-pdf
+cd pydocx-pdf
+pip install -e ".[dev]"
 ```
 
 ---
 
-## Usage
+## Quick start
+
+### Python API
 
 ```python
 from pydocx_pdf import convert
 
-# File paths
-convert("input.docx", "output.pdf")
+# File path → file path
+convert("report.docx", "report.pdf")
 
-# Bytes in, bytes out
-with open("input.docx", "rb") as f:
-    pdf_bytes = convert(f.read())
+# Raw bytes → raw bytes (perfect for web handlers, Lambda, FastAPI)
+with open("report.docx", "rb") as fh:
+    pdf_bytes = convert(fh.read())
 
-# Async
+# BytesIO → bytes
+import io
+convert(io.BytesIO(docx_bytes), "report.pdf")
+
+# Async (FastAPI / aiohttp)
 import asyncio
 from pydocx_pdf import convert_async
 
-asyncio.run(convert_async("input.docx", "output.pdf"))
+asyncio.run(convert_async("report.docx", "report.pdf"))
+
+# Custom font directory
+convert("report.docx", "report.pdf", font_dir="/app/fonts")
 ```
 
-### Custom fonts
+### CLI
 
-```python
-convert("input.docx", "output.pdf", font_dir="/app/fonts")
+```bash
+pydocx-pdf report.docx                    # writes report.pdf
+pydocx-pdf report.docx output.pdf         # explicit output path
+pydocx-pdf report.docx -o output.pdf      # flag form
+pydocx-pdf report.docx --font-dir /fonts  # custom fonts
+cat report.docx | pydocx-pdf - output.pdf # read from stdin
+pydocx-pdf --version
 ```
-
-Place `.ttf` files in `font_dir`. They are registered with fpdf2 at startup — no network calls.
 
 ---
 
-## EKS / Docker
+## API reference
+
+### `convert(source, dest=None, *, font_dir=None) → bytes`
+
+Convert a `.docx` document to PDF.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `source` | `str \| Path \| bytes \| BytesIO` | Input DOCX — file path, raw bytes, or a byte-stream |
+| `dest` | `str \| Path \| None` | Optional output path; PDF bytes are always returned |
+| `font_dir` | `str \| Path \| None` | Directory of extra `.ttf` files to register |
+
+**Returns** `bytes` — the rendered PDF starting with `b"%PDF-"`.
+
+**Raises**:
+- `FileNotFoundError` — when `source` is a path and the file does not exist
+- `TypeError` — when `source` is an unsupported type
+- `ConversionError` — when the DOCX cannot be parsed or the PDF cannot be rendered
+
+### `convert_async(source, dest=None, *, font_dir=None) → Awaitable[bytes]`
+
+Async wrapper around `convert()`.  Runs in a thread-pool executor so the event loop stays responsive.  Same parameters, same return type.
+
+### `DocxInput`
+
+Type alias for accepted source types: `Union[str, Path, bytes, io.BytesIO]`.
+
+### Exceptions
+
+```python
+from pydocx_pdf.exceptions import (
+    PydocxPdfError,          # base class — catch this to handle any library error
+    ConversionError,         # parse or render failure (wraps the original cause)
+    ParseError,              # DOCX XML could not be parsed
+    RenderError,             # PDF could not be rendered
+    UnsupportedFeatureError, # DOCX feature not yet implemented
+)
+```
+
+---
+
+## Docker / EKS
 
 ```dockerfile
-FROM python:3.11-slim
+FROM python:3.12-slim
 RUN pip install pydocx-pdf
+# Optional: bundle extra fonts
 COPY fonts/ /app/fonts/
-COPY . /app
 WORKDIR /app
 ```
 
-Zero egress required. Works with read-only root filesystems.
+Zero egress required at runtime. Works with read-only root filesystems (`/tmp` is used for nothing — all rendering is in-memory).
 
 ---
 
-## Supported Features
+## Supported features
 
-### Text Formatting
+### Text formatting
 
-| Feature                    | Status | Notes |
-|----------------------------|--------|-------|
-| Paragraphs                 | ✅     |       |
-| Bold / italic / underline  | ✅     |       |
-| Font size / color          | ✅     |       |
-| Character spacing          | ✅     | Expanded/condensed via `w:spacing` |
-| Font width scaling         | ✅     | Via `w:w` (e.g., 80% condensed)   |
-| Superscript / subscript    | ✅     |       |
-| All caps / small caps      | ✅     |       |
-| Strikethrough              | ✅     |       |
-| Tab characters             | ✅     | Converted to spaces               |
+| Feature | Status | Notes |
+|---|---|---|
+| Bold / italic / underline | ✅ | |
+| Strikethrough (single + double) | ✅ | |
+| Font size | ✅ | `w:sz` half-points |
+| Font colour | ✅ | Explicit hex + theme colour resolution |
+| Superscript / subscript | ✅ | Rendered at 65% of enclosing size |
+| All caps / small caps | ✅ | Text uppercased |
+| Character spacing | ✅ | `w:spacing` in 1/20-pt units → `set_char_spacing()` |
+| Font width scaling | ✅ | `w:w` percentage → `set_stretching()` |
+| Tab characters | ✅ | Converted to 4 spaces |
+| Kerning threshold | ⚠️ | Parsed, not applied (fpdf2 limitation) |
+| Baseline offset | ⚠️ | Parsed, not applied |
+| Text highlight | ❌ | fpdf2 limitation |
 
-### Layout & Structure
+### Paragraph layout
 
-| Feature           | Status | Notes |
-|-------------------|--------|-------|
-| Alignment         | ✅     | Left, center, right, justify |
-| Bullet lists      | ✅     |       |
-| Ordered lists     | ✅     |       |
-| Indentation       | ✅     | Paragraph-level only |
-| Line spacing      | ✅     | Single, 1.5×, double, exact |
-| Page breaks       | ✅     |       |
+| Feature | Status | Notes |
+|---|---|---|
+| Alignment (L/C/R/J) | ✅ | |
+| Space before / after | ✅ | |
+| Line spacing (auto/exact/atLeast) | ✅ | Auto uses font ascent/descent metrics |
+| Left / right / first-line indent | ✅ | |
+| Hard page breaks | ✅ | `w:br type="page"` |
 
-### Content
+### Structure
 
-| Feature            | Status | Notes |
-|--------------------|--------|-------|
-| Tables             | ✅     | Basic layout |
-| Inline images      | ✅     |       |
-| Style inheritance  | ✅     |       |
-| Fonts              | ✅     | Arial, Times, Courier via Liberation fonts |
+| Feature | Status | Notes |
+|---|---|---|
+| Headings (H1–H6, Title, Subtitle) | ✅ | Size + spacing from style ID |
+| Bullet lists | ✅ | |
+| Ordered lists (decimal/alpha/roman) | ✅ | |
+| Nested lists (up to 9 levels) | ✅ | |
+| Multi-level counter templates | ✅ | `%1.%2.` placeholders |
+| Style inheritance chain | ✅ | Full `basedOn` resolution |
 
-### Not Supported
+### Tables
 
-| Feature            | Status | Reason |
-|--------------------|--------|--------|
-| Headers / footers  | 🚧     | Partial support |
-| Kerning threshold  | ⚠️     | Extracted but font-level feature |
-| Baseline offset    | ⚠️     | Extracted but no fpdf2 API |
-| Text highlight     | ❌     | fpdf2 limitation |
-| SmartArt / WordArt | ❌     | Complex vector graphics |
-| Tracked changes    | ❌     |       |
-| OLE objects        | ❌     |       |
-| BiDi / RTL text    | ❌     |       |
+| Feature | Status | Notes |
+|---|---|---|
+| Proportional column widths | ✅ | From `w:tblGrid` |
+| Cell background fill | ✅ | `w:shd` |
+| Borders (colour + width) | ✅ | Table-level and per-cell |
+| Interior grid lines | ✅ | `insideH` / `insideV` |
+| Vertical alignment | ✅ | top / center / bottom |
+| Horizontal span (`gridSpan`) | ✅ | |
+| Vertical merge (`vMerge`) | ✅ | |
+| Nested tables | ✅ | Recursive |
+| Cell padding | ✅ | Table-level + per-cell overrides |
+
+### Images & other
+
+| Feature | Status | Notes |
+|---|---|---|
+| Inline images | ✅ | PNG, JPEG, GIF via `<w:drawing>` |
+| Hyperlinks | ✅ | Rendered as underlined blue text |
+| Tracked change insertions | ✅ | Text included |
+| Tracked change deletions | ✅ | Text excluded |
+| Headers / footers | 🚧 | Partial support |
+| SmartArt / WordArt | ❌ | Complex vector graphics |
+| OLE objects | ❌ | |
+| BiDi / RTL text | ❌ | |
 
 ---
 
-## Font Support
+## Font support
 
-**Bundled Fonts** (metric-compatible with Microsoft fonts):
-- LiberationSans (Arial replacement)
-- LiberationSerif (Times New Roman replacement)
-- LiberationMono (Courier replacement)
-- DejaVuSans (fallback)
+### Bundled fonts (always available)
 
-Each font includes Regular, Bold, Italic, and BoldItalic variants.
+| Family | Replaces | Variants |
+|--------|----------|----------|
+| LiberationSans | Arial, Calibri, Tahoma, Aptos, … | Regular, Bold, Italic, BoldItalic |
+| LiberationSerif | Times New Roman, Georgia, Cambria, … | Regular, Bold, Italic, BoldItalic |
+| LiberationMono | Courier New, Consolas, Monaco, … | Regular, Bold, Italic, BoldItalic |
+| DejaVuSans | Unicode fallback | Regular, Bold, Oblique, BoldOblique |
 
-**Font Resolution** (in order):
-1. Exact match (Arial → LiberationSans)
-2. Genre lookup (Helvetica → sans-serif)
-3. Substring heuristics (contains "courier" → monospace)
-4. Theme fallback (document theme fonts)
+### Font resolution order
 
----
+1. Exact name match (case-insensitive) against registered families
+2. Genre lookup (Arial → sans-serif → LiberationSans)
+3. Substring heuristics (contains "mono" → LiberationMono)
+4. Theme font fallback (document's majorFont / minorFont)
 
-## Character Spacing & Font Scaling
+### Custom fonts
 
-Character-level formatting is fully supported:
+Place `.ttf` files in any directory and pass it as `font_dir`:
 
 ```python
-from pydocx_pdf import convert
-
-# Character spacing automatically applied from DOCX
-# - Positive values expand spacing
-# - Negative values condense spacing
-# - Proper unit conversion: 1 twentiethpt = 0.01764 mm
-
-# Font width scaling also applied
-# - 100% = normal width
-# - 80% = condensed
-# - 120% = expanded
-
-pdf_bytes = convert("document_with_spacing.docx")
+convert("doc.docx", "doc.pdf", font_dir="/app/fonts")
 ```
 
-**DOCX Properties Extracted**:
-- `w:spacing/@w:val` — Character spacing (1/20th point)
-- `w:w/@w:val` — Font width percentage
-- `w:kern/@w:val` — Kerning threshold (parsed, not applied)
-- `w:position/@w:val` — Vertical offset (parsed, not applied)
+Each file is registered under its stem name (`MyFont-Bold.ttf` → `"MyFont-Bold"`).
+No network access required.
 
 ---
 
-## Testing
+## Character spacing & font scaling
 
-```bash
-# Run tests
-pytest
+These DOCX run properties are fully supported:
 
-# With coverage
-pytest --cov=pydocx_pdf
-
-# Run specific test file
-pytest tests/test_character_spacing.py
-```
-
-**Test Coverage**:
-- Character spacing extraction and application
-- Font scaling/width adjustment
-- Tab character handling
-- All text rendering paths (list items, single-format, multi-format)
-- Font resolution and substitution
-- Style inheritance
-
----
-
-## Cleanup
-
-If you need to clean up auto-generated files and update `.gitignore`:
-
-**Windows**:
-```cmd
-CLEANUP.bat
-```
-
-**macOS/Linux**:
-```bash
-bash CLEANUP.sh
-```
-
-This removes:
-- Temporary test files
-- Pytest caches
-- Optional: egg-info and venv directories
+| DOCX property | Meaning | fpdf2 API used |
+|---|---|---|
+| `w:spacing/@w:val` | Character spacing in 1/20 pt | `set_char_spacing()` |
+| `w:w/@w:val` | Horizontal glyph width % | `set_stretching()` |
+| `w:kern/@w:val` | Kerning threshold (half-pt) | Parsed, stored |
+| `w:position/@w:val` | Baseline offset (half-pt) | Parsed, stored |
 
 ---
 
 ## Development
 
 ```bash
+# Install with dev extras
 pip install -e ".[dev]"
-pytest --cov=pydocx_pdf
+
+# Run tests
+pytest
+
+# With coverage
+pytest --cov=pydocx_pdf --cov-report=term-missing
+
+# Lint
+ruff check pydocx_pdf tests
+
+# Type-check (strict)
+mypy pydocx_pdf
 ```
 
-### Key Implementation Files
+### Project structure
 
-- `pydocx_pdf/parser/styles.py` — Extract DOCX properties (including character spacing)
-- `pydocx_pdf/models/paragraph.py` — Run model with character formatting properties
-- `pydocx_pdf/renderer/paragraph.py` — Apply formatting to PDF
+```
+pydocx_pdf/
+  __init__.py          # Public API: convert, convert_async, exceptions
+  converter.py         # Top-level conversion entry points
+  cli.py               # Command-line interface
+  exceptions.py        # Exception hierarchy
+  font_map.py          # DOCX font name → PDF family resolution
+  unzipper.py          # DOCX ZIP extraction → DocxParts
+  utils.py             # XML helpers + unit conversions
+  fonts/               # Bundled TrueType fonts (Liberation + DejaVu)
+  models/
+    document.py        # Document, Block
+    paragraph.py       # Paragraph, Run
+    table.py           # Table, TableRow, TableCell, …
+    image.py           # Image
+  parser/
+    document.py        # DocumentParser — walks word/document.xml
+    styles.py          # StylesParser — resolves basedOn inheritance chain
+    numbering.py       # NumberingParser — list counters
+    relationships.py   # RelationshipsParser — rId → target mapping
+    theme.py           # parse_theme — font/colour scheme
+  renderer/
+    pdf_writer.py      # PDFWriter — orchestrates fpdf2
+    paragraph.py       # ParagraphRenderer
+    table.py           # TableRenderer
+tests/
+  test_converter.py
+  test_character_spacing.py
+  test_styles.py
+  test_unzipper.py
+```
 
 ---
 
 ## License
 
-MIT
+[MIT](LICENSE.txt) © Safiuddeen Salem

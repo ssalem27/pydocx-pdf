@@ -1,6 +1,10 @@
 name: CI / Publish
 
 on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
   release:
     types: [published]
 
@@ -13,8 +17,10 @@ env:
 jobs:
   # ── Run tests, linting, and type-checking on every push / PR ──────────────
   test:
+    name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.9", "3.11", "3.12"]
 
@@ -37,12 +43,14 @@ jobs:
         run: mypy pydocx_pdf
 
       - name: Test (pytest)
-        run: pytest --tb=short
+        run: pytest --tb=short -q
 
   # ── Build the wheel + sdist on release ────────────────────────────────────
   release-build:
+    name: Build distributions
     runs-on: ubuntu-latest
     needs: test
+    if: github.event_name == 'release'
 
     steps:
       - uses: actions/checkout@v4
@@ -64,8 +72,10 @@ jobs:
 
   # ── Publish to PyPI via OIDC trusted publishing ───────────────────────────
   pypi-publish:
+    name: Publish to PyPI
     runs-on: ubuntu-latest
     needs: release-build
+    if: github.event_name == 'release'
     permissions:
       id-token: write   # required for OIDC trusted publishing
 
